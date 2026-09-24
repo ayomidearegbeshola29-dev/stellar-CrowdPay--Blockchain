@@ -14,6 +14,13 @@ const ALL_WEBHOOK_EVENTS = Object.values(WEBHOOK_EVENTS);
 const MAX_DELIVERY_ATTEMPTS = 5;
 const MAX_CAMPAIGN_DELIVERY_ATTEMPTS = 3;
 
+// A delivery flips to 'delivering' the moment the HTTP request starts. If the
+// process crashes mid-request the row can be stuck in 'delivering' forever
+// (the in-process retry timer dies with it). The poller treats a 'delivering'
+// row whose lease has expired as abandoned and re-queues it. Kept comfortably
+// above the 9s fetch timeout so live in-flight deliveries are never double-picked.
+const DELIVERY_LEASE_SECONDS = 25;
+
 function hmacSignature(secret, bodyUtf8) {
   return crypto.createHmac('sha256', secret).update(bodyUtf8, 'utf8').digest('hex');
 }
@@ -160,11 +167,13 @@ async function scheduleRetry(deliveryId, attemptJustUsed, errMsg, httpStatus, sn
 async function processDueRetries() {
   const { rows } = await db.query(
     `SELECT id FROM webhook_deliveries
-     WHERE status = 'retrying' AND next_retry_at IS NOT NULL AND next_retry_at <= NOW()
-     LIMIT 25`
+     WHERE (status = 'retrying' AND next_retry_at IS NOT NULL AND next_retry_at <= NOW())
+        OR (status = 'delivering' AND updated_at <= NOW() - make_interval(secs => $1))
+     LIMIT 25`,
+    [DELIVERY_LEASE_SECONDS]
   );
   for (const r of rows) {
-    processDelivery(r.id).catch((err) =>
+    await processDelivery(r.id).catch((err) =>
       console.error(`[webhooks] poller ${r.id}:`, err.message)
     );
   }
@@ -299,11 +308,13 @@ async function scheduleCampaignWebhookRetry(deliveryId, attemptJustUsed, errMsg,
 async function processDueCampaignWebhookRetries() {
   const { rows } = await db.query(
     `SELECT id FROM campaign_webhook_deliveries
-     WHERE status = 'retrying' AND next_retry_at IS NOT NULL AND next_retry_at <= NOW()
-     LIMIT 25`
+     WHERE (status = 'retrying' AND next_retry_at IS NOT NULL AND next_retry_at <= NOW())
+        OR (status = 'delivering' AND updated_at <= NOW() - make_interval(secs => $1))
+     LIMIT 25`,
+    [DELIVERY_LEASE_SECONDS]
   );
   for (const r of rows) {
-    processCampaignWebhookDelivery(r.id).catch((err) =>
+    await processCampaignWebhookDelivery(r.id).catch((err) =>
       console.error(`[campaign-webhooks] poller ${r.id}:`, err.message)
     );
   }
@@ -326,5 +337,7 @@ module.exports = {
   emitWebhookEventForCampaign,
   processDelivery,
   processCampaignWebhookDelivery,
+  processDueRetries,
+  processDueCampaignWebhookRetries,
   startWebhookRetryPoller,
 };

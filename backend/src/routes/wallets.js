@@ -56,10 +56,10 @@ router.get('/:campaignId/payments', requireAuth, async (req, res) => {
   res.json(payments);
 });
 
-// Recover wallet keypair (admin only - requires encrypted secret)
+// Recover wallet keypair (creator only - requires encrypted secret)
 router.post('/:campaignId/recover', requireAuth, async (req, res) => {
   const { rows } = await db.query(
-    'SELECT wallet_secret_encrypted, creator_id FROM campaigns WHERE id = $1',
+    'SELECT wallet_secret_encrypted, wallet_public_key, creator_id FROM campaigns WHERE id = $1',
     [req.params.campaignId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Campaign not found' });
@@ -70,9 +70,18 @@ router.post('/:campaignId/recover', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'No encrypted secret stored for this campaign' });
   }
 
-  const secret = decryptSecret(rows[0].wallet_secret_encrypted);
-  const wallet = recoverWalletFromSecret(secret);
-  res.json({ publicKey: wallet.publicKey });
+  try {
+    const secret = decryptSecret(rows[0].wallet_secret_encrypted);
+    const wallet = await recoverWalletFromSecret(secret);
+    if (wallet.publicKey !== rows[0].wallet_public_key) {
+      return res.status(500).json({
+        error: 'Stored secret does not match the campaign wallet public key',
+      });
+    }
+    res.json({ publicKey: wallet.publicKey, verified: true });
+  } catch {
+    return res.status(500).json({ error: 'Could not recover campaign wallet keypair' });
+  }
 });
 
 module.exports = router;

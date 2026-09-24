@@ -4,6 +4,15 @@ const express = require('express');
 const request = require('supertest');
 const proxyquire = require('proxyquire').noCallThru();
 
+// wallet route/encryption tests decrypt the stored campaign secret, so a stable
+// server-side key must be present (mirrors how provider env vars are seeded).
+process.env.WALLET_ENCRYPTION_KEY =
+  process.env.WALLET_ENCRYPTION_KEY ||
+  '0000000000000000000000000000000000000000000000000000000000000000';
+// campaigns.js pulls in sorobanService -> config/stellar, which builds the USDC asset.
+process.env.USDC_ISSUER =
+  process.env.USDC_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
 function buildApp({
   queryImpl,
   buildWithdrawalTransactionImpl,
@@ -210,6 +219,47 @@ test('POST /api/campaigns allows creation when KYC gate is disabled', async (t) 
 
   assert.equal(response.status, 201);
   assert.equal(response.body.id, 'campaign-1');
+});
+
+test('POST /api/campaigns persists an encrypted campaign wallet secret', async (t) => {
+  const previous = process.env.KYC_REQUIRED_FOR_CAMPAIGNS;
+  t.after(() => {
+    if (previous === undefined) delete process.env.KYC_REQUIRED_FOR_CAMPAIGNS;
+    else process.env.KYC_REQUIRED_FOR_CAMPAIGNS = previous;
+  });
+  process.env.KYC_REQUIRED_FOR_CAMPAIGNS = 'false';
+
+  let insertParams;
+  const app = buildApp({
+    authUser: { userId: 'creator-1', role: 'creator' },
+    queryImpl: async (text, params) => {
+      if (text.includes('SELECT email, wallet_public_key, kyc_status, email_verified FROM users')) {
+        return { rows: [{ wallet_public_key: 'GCREATOR', kyc_status: 'unverified', email_verified: true }] };
+      }
+      if (text.includes('INSERT INTO campaigns')) {
+        insertParams = params;
+        return { rows: [{ id: 'campaign-1', creator_id: 'creator-1' }] };
+      }
+      return { rows: [] };
+    },
+  });
+
+  const response = await request(app)
+    .post('/api/campaigns')
+    .set('Authorization', 'Bearer token')
+    .send({ title: 'Dev campaign', target_amount: '100', asset_type: 'USDC' });
+
+  assert.equal(response.status, 201);
+  assert.ok(insertParams, 'campaign INSERT params were captured');
+  assert.equal(insertParams[0], 'Dev campaign');
+  assert.equal(insertParams[4], 'GPK');
+  assert.equal(typeof insertParams[5], 'string', 'wallet_secret_encrypted must be stored');
+  assert.notEqual(insertParams[5], 'S', 'secret must be stored encrypted, never in plaintext');
+  assert.equal(
+    require('../services/walletService').decryptSecret(insertParams[5]),
+    'S',
+    'stored secret must round-trip back to the wallet master secret'
+  );
 });
 
 test('POST /api/campaigns returns 500 and logs orphaned wallet when DB insert fails', async () => {

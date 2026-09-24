@@ -18,6 +18,7 @@ const { sendEmailSafe } = require('../services/emailService');
 const { uploadCampaignCoverImage } = require('../services/storage');
 const { isKycRequiredForCampaigns } = require('../services/kycProvider');
 const { listCreatorCampaigns } = require('../services/userDashboardService');
+const { encryptSecret } = require('../services/walletService');
 const {
   createCampaignValidation,
   createCampaignUpdateValidation,
@@ -802,11 +803,12 @@ router.post('/', requireAuth, requireRole('creator', 'admin'), createCampaignVal
     await client.query('BEGIN');
     const { rows } = await client.query(
       `INSERT INTO campaigns
-         (title, description, target_amount, asset_type, wallet_public_key, creator_id, deadline, 
-          min_contribution, max_contribution)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (title, description, target_amount, asset_type, wallet_public_key, wallet_secret_encrypted,
+          creator_id, deadline, min_contribution, max_contribution)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [title, description, target_amount, asset_type, wallet.publicKey, req.user.userId, deadline, 
+      [title, description, target_amount, asset_type, wallet.publicKey,
+       encryptSecret(wallet.secret), req.user.userId, deadline,
        min_contribution || null, max_contribution || null]
     );
     campaign = rows[0];

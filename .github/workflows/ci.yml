@@ -132,7 +132,7 @@ jobs:
       - name: Run E2E tests
         env:
           CI: true
-          DATABASE_URL: postgresql://postgres:password@localhost:5433/crowdpay
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/crowdpay
           JWT_SECRET: testsecret
           API_KEY_PEPPER: test-api-key-pepper
           WALLET_SECRET_LOCAL_KEK: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=

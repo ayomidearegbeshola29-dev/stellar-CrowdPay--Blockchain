@@ -46,7 +46,7 @@ function milestonePercentTotal(milestones) {
 
 export default function CreateCampaign() {
   const { t } = useTranslation();
-  const { user, ready, updateUser } = useAuth();
+  const { user, ready, updateUser, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [step, setStep] = useState(1);

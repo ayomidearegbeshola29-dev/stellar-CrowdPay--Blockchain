@@ -220,10 +220,12 @@ async function bootstrap() {
   });
 }
 
-bootstrap().catch((err) => {
-  logger.error('Backend bootstrap failed', { error: err.message });
-  sendAlert('Backend bootstrap failed', { error: err.message });
-  process.exit(1);
-});
+if (require.main === module) {
+  bootstrap().catch((err) => {
+    logger.error('Backend bootstrap failed', { error: err.message });
+    sendAlert('Backend bootstrap failed', { error: err.message });
+    process.exit(1);
+  });
+}
 
 module.exports = app;

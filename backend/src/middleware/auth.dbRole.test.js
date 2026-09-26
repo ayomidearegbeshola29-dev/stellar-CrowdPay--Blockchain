@@ -30,8 +30,7 @@ function buildApp({ dbUser, roles }) {
   const { requireAuth, requireRole } = proxyquire('./auth', {
     '../config/database': {
       query: async (text, params) => {
-        // Simulate any DB query used inside authenticate
-        if (text.includes('SELECT role, is_admin, is_super_admin, is_banned FROM users')) {
+        if (text.includes('FROM users')) {
           return { rows: dbUser ? [dbUser] : [] };
         }
         return { rows: [] };

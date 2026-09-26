@@ -69,6 +69,9 @@ function buildActions(overrides = {}) {
       sendEmail: async (payload) => {
         calls.emails.push(payload);
       },
+      sendEmailSafe: async (payload) => {
+        calls.emails.push(payload);
+      },
     },
     './notifications': {
       createNotification: async (userId, payload) => {
@@ -204,6 +207,12 @@ test('downstream failure triggers alert and does not suppress subsequent replay'
     modules: {
       './emailService': {
         sendEmail: async (payload) => {
+          if (failFirstTime) {
+            throw new Error('Simulated email service failure');
+          }
+          calls.emails.push(payload);
+        },
+        sendEmailSafe: async (payload) => {
           if (failFirstTime) {
             throw new Error('Simulated email service failure');
           }

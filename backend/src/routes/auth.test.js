@@ -84,9 +84,6 @@ function buildAuthModule(overrides = {}) {
     '../services/kycProvider': {
       isKycRequiredForCampaigns: () => false,
     },
-    '../services/kycProvider': {
-      isKycRequiredForCampaigns: () => false,
-    },
     '../services/emailService': {
       sendEmail: async () => {},
       sendEmailSafe: async () => {},

@@ -1,6 +1,9 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, token};
 
+#[cfg(test)]
+mod test;
+
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {

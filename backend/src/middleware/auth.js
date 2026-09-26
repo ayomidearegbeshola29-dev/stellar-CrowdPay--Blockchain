@@ -47,7 +47,7 @@ async function authenticate(req) {
     // Load admin status and validate token_version from database
     if (req.user.userId) {
       const { rows } = await db.query(
-        'SELECT is_admin, is_banned, token_version FROM users WHERE id = $1',
+        'SELECT role, is_admin, is_super_admin, is_banned, token_version FROM users WHERE id = $1',
         [req.user.userId]
       );
       if (rows.length) {

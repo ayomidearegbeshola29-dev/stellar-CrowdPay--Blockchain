@@ -57,6 +57,26 @@ jobs:
           ENABLE_CAMPAIGN_STATUS_CRON: 'false'
         run: npm test
 
+  contract-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/soroban -> target
+
+      - name: Run contract tests
+        working-directory: ./contracts/soroban
+        run: cargo test
+
   frontend-checks:
     runs-on: ubuntu-latest
 

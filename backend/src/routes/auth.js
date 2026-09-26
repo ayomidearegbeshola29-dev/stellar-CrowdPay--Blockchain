@@ -284,7 +284,7 @@ router.post('/register', registerLimiter, registerValidation, validateRequest, a
   let publicKey;
   let encryptedSecret = null;
   let secret = null;
-  let walletType = req.body.wallet_type || 'custodial';
+  const walletType = req.body.wallet_type || 'custodial';
 
   if (walletType === 'freighter') {
     publicKey = req.body.wallet_public_key;
@@ -327,6 +327,7 @@ router.post('/register', registerLimiter, registerValidation, validateRequest, a
   );
 
   const requestId = req.id;
+  const verifyUrl = `${getFrontendUrl()}/verify-email?token=${verificationToken}`;
   setImmediate(() => {
     // Only fund and setup trustlines for custodial wallets
     if (walletType === 'custodial' && secret) {
@@ -343,7 +344,7 @@ router.post('/register', registerLimiter, registerValidation, validateRequest, a
       subject: 'Verify your CrowdPay email address',
       text: `Welcome to CrowdPay, ${normalizedName}!\n\nPlease verify your email address by opening this link:\n\n${verifyUrl}\n\nThis link is valid for 24 hours.\n\nIf you did not create this account, you can ignore this email.`,
       html: `<p>Welcome to CrowdPay, ${normalizedName}!</p><p>Please <a href="${verifyUrl}">verify your email address</a> to unlock all features (creating campaigns, withdrawals, etc.).</p><p>This link is valid for 24 hours.</p><p>If you did not create this account, you can ignore this email.</p>`,
-    })).catch((err) => {
+    }).catch((err) => {
       logger.error('Verification email send failed', { request_id: requestId, error: err.message });
     });
   });
@@ -717,7 +718,7 @@ router.post(
     );
 
     res.json({ message: 'Password reset successfully. All existing sessions have been invalidated.' });
-  }
+  })
 );
 
 module.exports = router;

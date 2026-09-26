@@ -61,6 +61,7 @@ const prepareLimiter = rateLimit({
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
     return userId ? `${userId}_${ip}` : String(ip);
   },
+  validate: { keyGeneratorIpFallback: false },
   message: { error: 'Too many prepare requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -75,6 +76,7 @@ const submitSignedLimiter = rateLimit({
     const prepareToken = req.body?.prepare_token || '';
     return prepareToken ? `${userId}_${prepareToken}` : `${userId}_${req.ip}`;
   },
+  validate: { keyGeneratorIpFallback: false },
   message: { error: 'Too many submission requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,

@@ -160,6 +160,7 @@ export default function Campaign() {
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
+  const [showEmbedSection, setShowEmbedSection] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [isEditingCampaign, setIsEditingCampaign] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -1557,7 +1558,13 @@ export default function Campaign() {
             required
           />
           {updatesError && (
-            <div style={{ color: "var(--color-status-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+            <div
+              style={{
+                color: "var(--color-status-error)",
+                fontSize: "0.85rem",
+                marginTop: "0.5rem",
+              }}
+            >
               {updatesError}
             </div>
           )}
@@ -1567,17 +1574,17 @@ export default function Campaign() {
               className="btn-primary"
               disabled={updateBusy}
             >
-              {updateBusy ? "Saving..." : editingUpdateId ? "Save changes" : "Post"}
+              {updateBusy
+                ? "Saving..."
+                : editingUpdateId
+                  ? "Save update"
+                  : "Post update"}
             </button>
             {editingUpdateId && (
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => {
-                  setEditingUpdateId(null);
-                  setUpdateForm({ title: "", body: "" });
-                  setUpdatesError("");
-                }}
+                onClick={cancelUpdateEdit}
               >
                 Cancel
               </button>
@@ -1585,6 +1592,21 @@ export default function Campaign() {
           </div>
         </form>
       )}
+
+      {updates.length === 0 ? (
+        <p
+          style={{ color: "var(--color-text-muted)", marginBottom: "1rem" }}
+        >
+          No updates yet — the creator hasn't posted anything.
+        </p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gap: "0.75rem",
+            marginBottom: "1.25rem",
+          }}
+        >
           {updates.map((update) => (
             <article key={update.id} className="campaign-card">
               <div
@@ -1606,6 +1628,7 @@ export default function Campaign() {
                   <RelativeTime date={update.created_at} />
                 </span>
               </div>
+
               <div
                 style={{
                   marginTop: "0.5rem",
@@ -1616,9 +1639,46 @@ export default function Campaign() {
                   __html: markdownToHtml(update.body),
                 }}
               />
+
+              {canPostUpdate && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    marginTop: "0.75rem",
+                  }}
+                >
+                  {canEditUpdate(update) && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => startEditUpdate(update)}
+                      style={{
+                        fontSize: "0.85rem",
+                        padding: "0.4rem 0.75rem",
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => deleteUpdate(update.id)}
+                    style={{
+                      fontSize: "0.85rem",
+                      padding: "0.4rem 0.75rem",
+                      color: "var(--color-status-error)",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </article>
           ))}
-
+        </div>
+      )}
 
       {/* Analytics Section */}
       {isOwner && analytics && (
@@ -1735,147 +1795,15 @@ export default function Campaign() {
         <div style={styles.emptyBackers}>
           <p>Be the first to back this!</p>
           <p
-            style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}
+            style={{
+              fontSize: "0.9rem",
+              color: "var(--color-text-secondary)",
+              marginTop: "0.25rem",
+            }}
           >
             Every contribution counts towards making this goal a reality.
           </p>
         </div>
-      ) : (
-        <>
-          <div style={styles.list} className="contributions-list">
-            {contributions.map((c) => (
-              <ContributionRow key={c.id} c={c} />
-            ))}
-          </div>
-          {totalContributions > 10 && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowAll((prev) => !prev)}
-                style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem', cursor: 'pointer' }}
-              >
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={updateBusy}
-                >
-                  {updateBusy
-                    ? "Saving..."
-                    : editingUpdateId
-                      ? "Save update"
-                      : "Post update"}
-                </button>
-
-                {editingUpdateId && (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={cancelUpdateEdit}
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
-          )}
-
-          {updates.length === 0 ? (
-            <p
-              style={{ color: "var(--color-text-muted)", marginBottom: "1rem" }}
-            >
-              No updates yet — the creator hasn't posted anything.
-            </p>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gap: "0.75rem",
-                marginBottom: "1.25rem",
-              }}
-            >
-              {updates.map((update) => (
-                <article key={update.id} className="campaign-card">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "0.5rem",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <strong>{update.title}</strong>
-                    <span
-                      style={{
-                        color: "var(--color-text-hint)",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {update.author_name} •{" "}
-                      <RelativeTime date={update.created_at} />
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "0.5rem",
-                      color: "var(--color-text-primary)",
-                      lineHeight: 1.5,
-                    }}
-                    dangerouslySetInnerHTML={{
-                      __html: markdownToHtml(update.body),
-                    }}
-                  />
-
-                  {canPostUpdate && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        marginTop: "0.75rem",
-                      }}
-                    >
-                      {canEditUpdate(update) && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => startEditUpdate(update)}
-                          style={{
-                            fontSize: "0.85rem",
-                            padding: "0.4rem 0.75rem",
-                          }}
-                        >
-                          Edit
-                        </button>
-                      )}
-
-
-          <h2 style={styles.sectionTitle}>
-            Backer Wall{" "}
-            {contributions !== null ? `(${totalContributions})` : ""}
-            {isLive && (
-              <span style={styles.liveIndicator} title="Live updates active">
-                <span style={styles.liveDot} />
-                Live
-              </span>
-            )}
-          </h2>
-
-          {contributions === null ? (
-            <ContributionListSkeleton />
-          ) : contributions.length === 0 ? (
-            <div style={styles.emptyBackers}>
-              <p>Be the first to back this!</p>
-              <p
-                style={{
-                  fontSize: "0.9rem",
-                  color: "var(--color-text-secondary)",
-                  marginTop: "0.25rem",
-                }}
-              >
-                Every contribution counts towards making this goal a reality.
-              </p>
-            </div>
       ) : (
         <>
           <div style={styles.list} className="contributions-list">
@@ -1904,9 +1832,9 @@ export default function Campaign() {
                 {showAll ? "Show less" : `Show all (${totalContributions})`}
               </button>
             </div>
-              )}
-            </>
           )}
+        </>
+      )}
 
 
       {showModal && (
@@ -2257,128 +2185,6 @@ const styles = {
     flexWrap: "wrap",
   },
   asset: {
-    background: "#ede9fe",
-    color: "#7c3aed",
-    fontSize: "0.75rem",
-    fontWeight: 700,
-    padding: "2px 8px",
-    borderRadius: "99px",
-  },
-  title: {
-    fontSize: "1.8rem",
-    fontWeight: 800,
-    margin: "0.5rem 0",
-    color: "#111",
-  },
-  creator: { color: "#666", fontSize: "0.9rem", marginBottom: "0.5rem" },
-  desc: { color: "#555", fontSize: "1rem", lineHeight: 1.6 },
-  card: {
-    background: "#fff",
-    border: "1px solid #e5e5e5",
-    borderRadius: "10px",
-    padding: "1.5rem",
-    marginBottom: "1rem",
-  },
-  amounts: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: "1rem",
-  },
-  big: { fontSize: "1.5rem", fontWeight: 800, color: "#111" },
-  small: { fontSize: "0.85rem", color: "#888" },
-  bar: {
-    background: "#f0f0f0",
-    borderRadius: "99px",
-    height: "8px",
-    marginBottom: "1.25rem",
-    overflow: "hidden",
-  },
-  fill: { background: "#7c3aed", height: "100%", borderRadius: "99px" },
-  cta: { width: "100%", padding: "0.85rem", fontSize: "1rem" },
-  walletInfo: {
-    background: "#f8f8f8",
-    borderRadius: "8px",
-    padding: "0.75rem 1rem",
-    marginBottom: "1.75rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
-  },
-  walletLabel: {
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    color: "#888",
-    textTransform: "uppercase",
-  },
-  walletKey: { fontSize: "0.8rem", color: "#555", wordBreak: "break-all" },
-  detailCoverImage: {
-    width: "100%",
-    borderRadius: "14px",
-    marginBottom: "1.5rem",
-    objectFit: "cover",
-    maxHeight: "360px",
-  },
-  detailCoverPlaceholder: {
-    width: "100%",
-    borderRadius: "14px",
-    marginBottom: "1.5rem",
-    height: "260px",
-    background: "linear-gradient(135deg, #ede9fe 0%, #e0e7ff 100%)",
-    border: "1px solid #ddd6fe",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  detailCoverPlaceholderText: { color: "#6d28d9", fontWeight: 700 },
-  sectionTitle: {
-    fontSize: "1.1rem",
-    fontWeight: 700,
-    marginBottom: "0.75rem",
-  },
-  list: { display: "flex", flexDirection: "column", gap: "0.5rem" },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: "6px",
-    padding: "0.6rem 0.85rem",
-  },
-  sender: { fontSize: "0.85rem", color: "#555", fontFamily: "monospace" },
-  amount: { fontSize: "0.85rem", fontWeight: 600, flexShrink: 0 },
-  convHint: { fontSize: "0.72rem", color: "#888", marginTop: "0.15rem" },
-  refundTag: {
-    marginTop: "0.45rem",
-    fontSize: "0.75rem",
-    color: "#7c3aed",
-    fontWeight: 700,
-  },
-  liveIndicator: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "4px",
-    marginLeft: "0.5rem",
-    fontSize: "0.72rem",
-    fontWeight: 600,
-    color: "#16a34a",
-    verticalAlign: "middle",
-  },
-  liveDot: {
-    display: "inline-block",
-    width: "7px",
-    height: "7px",
-    borderRadius: "50%",
-    background: "#16a34a",
-    animation: "pulse 1.5s ease-in-out infinite",
-  },
-  header: { marginBottom: "1.5rem" },
-  badgeRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    flexWrap: "wrap",
-  },
-  asset: {
     background: "var(--color-accent-lightest)",
     color: "var(--color-accent)",
     fontSize: "0.75rem",
@@ -2460,6 +2266,18 @@ const styles = {
     objectFit: "cover",
     maxHeight: "360px",
   },
+  detailCoverPlaceholder: {
+    width: "100%",
+    borderRadius: "14px",
+    marginBottom: "1.5rem",
+    height: "260px",
+    background: "linear-gradient(135deg, var(--color-accent-lightest, #ede9fe) 0%, #e0e7ff 100%)",
+    border: "1px solid var(--color-accent-lighter, #ddd6fe)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailCoverPlaceholderText: { color: "var(--color-accent, #6d28d9)", fontWeight: 700 },
   sectionTitle: {
     fontSize: "1.1rem",
     fontWeight: 700,
@@ -2569,3 +2387,4 @@ const styles = {
     justifyContent: "center",
   },
 };
+

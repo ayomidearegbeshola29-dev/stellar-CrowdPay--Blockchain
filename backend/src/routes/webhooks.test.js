@@ -15,9 +15,22 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const express = require('express');
 const request = require('supertest');
 const proxyquire = require('proxyquire').noCallThru();
+
+process.env.KYC_WEBHOOK_SECRET = 'test-kyc-webhook-secret';
+
+function signKycPayload(body) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const rawBody = typeof body === 'string' ? body : JSON.stringify(body || {});
+  const digest = crypto
+    .createHmac('sha256', process.env.KYC_WEBHOOK_SECRET)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+  return `t=${timestamp},v1=${digest}`;
+}
 
 const ALL_WEBHOOK_EVENTS = [
   'contribution.received',
@@ -114,12 +127,25 @@ function buildApp({ userId = 'user-1', queryImpl, requireAuth } = {}) {
 // POST /api/webhooks/kyc — unauthenticated KYC webhook (regression test)
 // ---------------------------------------------------------------------------
 
-test('POST /api/webhooks/kyc succeeds WITHOUT an Authorization header (unauthenticated)', async () => {
+test('POST /api/webhooks/kyc rejects unsigned request with 401', async () => {
   const app = buildApp();
-
   const res = await request(app)
     .post('/api/webhooks/kyc')
     .send({ status: 'verified', inquiry_id: 'inq_abc123' });
+
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error?.message || res.body.error, 'KYC webhook signature verification failed');
+});
+
+test('POST /api/webhooks/kyc succeeds WITHOUT an Authorization header (unauthenticated but HMAC signed)', async () => {
+  const app = buildApp();
+  const payload = { status: 'verified', inquiry_id: 'inq_abc123' };
+
+  const res = await request(app)
+    .post('/api/webhooks/kyc')
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
+
   // Must be accessible without auth
   assert.notEqual(res.status, 401, 'KYC webhook must not require authentication');
   assert.notEqual(res.status, 403, 'KYC webhook must not require authentication');
@@ -129,10 +155,12 @@ test('POST /api/webhooks/kyc succeeds WITHOUT an Authorization header (unauthent
 
 test('POST /api/webhooks/kyc returns 400 for a payload with no provider reference or userId', async () => {
   const app = buildApp();
+  const payload = { status: 'verified' };
 
   const res = await request(app)
     .post('/api/webhooks/kyc')
-    .send({ status: 'verified' });
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
 
   assert.equal(res.status, 400);
   assert.ok(res.body.error);
@@ -140,10 +168,12 @@ test('POST /api/webhooks/kyc returns 400 for a payload with no provider referenc
 
 test('POST /api/webhooks/kyc returns 400 for an unsupported KYC status', async () => {
   const app = buildApp();
+  const payload = { status: 'unknown_state', inquiry_id: 'inq_abc' };
 
   const res = await request(app)
     .post('/api/webhooks/kyc')
-    .send({ status: 'unknown_state', inquiry_id: 'inq_abc' });
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
 
   assert.equal(res.status, 400);
   assert.ok(res.body.error);
@@ -158,9 +188,11 @@ test('POST /api/webhooks/kyc returns 404 when the user is not found in DB', asyn
   };
 
   const app = buildApp({ queryImpl: notFoundQuery });
+  const payload = { status: 'verified', inquiry_id: 'inq_notfound' };
   const res = await request(app)
     .post('/api/webhooks/kyc')
-    .send({ status: 'verified', inquiry_id: 'inq_notfound' });
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
 
   assert.equal(res.status, 404);
 });
@@ -168,9 +200,11 @@ test('POST /api/webhooks/kyc returns 404 when the user is not found in DB', asyn
 test('POST /api/webhooks/kyc accepts all three valid KYC statuses', async () => {
   for (const status of ['verified', 'rejected', 'pending']) {
     const app = buildApp();
+    const payload = { status, inquiry_id: `inq_${status}` };
     const res = await request(app)
       .post('/api/webhooks/kyc')
-      .send({ status, inquiry_id: `inq_${status}` });
+      .set('Persona-Signature', signKycPayload(payload))
+      .send(payload);
 
     assert.equal(res.status, 200, `Expected 200 for status=${status}, got ${res.status}`);
     assert.equal(res.body.received, true);
@@ -183,19 +217,22 @@ test('POST /api/webhooks/kyc accepts all three valid KYC statuses', async () => 
 
 test('POST /api/webhooks/kyc with an empty body returns 400', async () => {
   const app = buildApp();
+  const payload = {};
   const res = await request(app)
     .post('/api/webhooks/kyc')
-    .send({});
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
 
   assert.equal(res.status, 400);
 });
 
 test('POST /api/webhooks/kyc with a completely garbage payload returns 400', async () => {
   const tamperedApp = buildApp();
+  const payload = { not_a_real_field: true, another_junk_key: 'hello' };
   const res = await request(tamperedApp)
     .post('/api/webhooks/kyc')
-    .set('Content-Type', 'application/json')
-    .send('{"not_a_real_field": true, "another_junk_key": "hello"}');
+    .set('Persona-Signature', signKycPayload(payload))
+    .send(payload);
 
   // Should 400 — no provider reference or userId extractable, unsupported status.
   assert.equal(res.status, 400);

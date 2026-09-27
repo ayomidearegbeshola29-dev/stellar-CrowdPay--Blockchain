@@ -1,6 +1,12 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, token};
 
+// ~1 year in ledgers (5s per ledger): 6_312_000. Use a safe ceiling.
+const INSTANCE_TTL_BUMP: u32 = 6_312_000;
+const INSTANCE_TTL_THRESHOLD: u32 = 100_000;
+const PERSISTENT_TTL_BUMP: u32 = 6_312_000;
+const PERSISTENT_TTL_THRESHOLD: u32 = 100_000;
+
 #[cfg(test)]
 mod test;
 
@@ -35,6 +41,7 @@ impl EscrowContract {
         env.storage().instance().set(&DataKey::TotalRaised, &0i128);
         env.storage().instance().set(&DataKey::ApprovedWithdrawal, &0i128);
         env.storage().instance().set(&DataKey::IsInitialized, &true);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn deposit(env: Env, from: Address, amount: i128) {
@@ -52,9 +59,11 @@ impl EscrowContract {
         let balance_key = DataKey::Balances(from.clone());
         let current_balance: i128 = env.storage().persistent().get(&balance_key).unwrap_or(0);
         env.storage().persistent().set(&balance_key, &(current_balance + amount));
+        env.storage().persistent().extend_ttl(&balance_key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_BUMP);
 
         let total_raised: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap_or(0);
         env.storage().instance().set(&DataKey::TotalRaised, &(total_raised + amount));
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn approve_withdrawal(env: Env, release_amount: i128) {
@@ -63,6 +72,7 @@ impl EscrowContract {
 
         let approved: i128 = env.storage().instance().get(&DataKey::ApprovedWithdrawal).unwrap_or(0);
         env.storage().instance().set(&DataKey::ApprovedWithdrawal, &(approved + release_amount));
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn execute_withdrawal(env: Env, to: Address, release_amount: i128) {
@@ -78,6 +88,7 @@ impl EscrowContract {
 
         approved -= release_amount;
         env.storage().instance().set(&DataKey::ApprovedWithdrawal, &approved);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn refund(env: Env, contributor: Address) {
@@ -104,13 +115,17 @@ impl EscrowContract {
         client.transfer(&env.current_contract_address(), &contributor, &amount);
 
         env.storage().persistent().set(&balance_key, &0i128);
+        // No TTL bump needed on zeroed-out balance; it can safely expire.
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn get_total_raised(env: Env) -> i128 {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
         env.storage().instance().get(&DataKey::TotalRaised).unwrap_or(0)
     }
 
     pub fn get_asset(env: Env) -> Address {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
         env.storage().instance().get(&DataKey::Asset).unwrap()
     }
 }

@@ -3,6 +3,10 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Symbol, Vec, IntoVal
 };
 
+// ~1 year in ledgers (5s per ledger)
+const INSTANCE_TTL_BUMP: u32 = 6_312_000;
+const INSTANCE_TTL_THRESHOLD: u32 = 100_000;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[contracttype]
 pub enum MilestoneStatus {
@@ -90,6 +94,7 @@ impl MilestonesContract {
         env.storage().instance().set(&DataKey::Escrow, &escrow);
         env.storage().instance().set(&DataKey::Milestones, &milestones);
         env.storage().instance().set(&DataKey::Initialized, &true);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
     }
 
     pub fn submit_milestone(env: Env, index: u32, evidence_hash: BytesN<32>) {
@@ -107,6 +112,7 @@ impl MilestonesContract {
         milestone.evidence_hash = Some(evidence_hash.clone());
         milestones.set(index, milestone);
         env.storage().instance().set(&DataKey::Milestones, &milestones);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
 
         env.events().publish(
             (symbol_short!("submit"), index),
@@ -156,6 +162,8 @@ impl MilestonesContract {
             );
         }
 
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
+
         env.events().publish(
             (symbol_short!("approve"), index),
             (),
@@ -176,6 +184,7 @@ impl MilestonesContract {
         milestone.status = MilestoneStatus::Rejected;
         milestones.set(index, milestone);
         env.storage().instance().set(&DataKey::Milestones, &milestones);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
 
         env.events().publish(
             (symbol_short!("reject"), index),
@@ -184,11 +193,13 @@ impl MilestonesContract {
     }
 
     pub fn get_milestone(env: Env, index: u32) -> Milestone {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
         let milestones: Vec<Milestone> = env.storage().instance().get(&DataKey::Milestones).expect("Not initialized");
         milestones.get(index).expect("Invalid index")
     }
 
     pub fn get_all_milestones(env: Env) -> Vec<Milestone> {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_BUMP);
         env.storage().instance().get(&DataKey::Milestones).expect("Not initialized")
     }
 }

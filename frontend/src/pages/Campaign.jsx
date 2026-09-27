@@ -122,6 +122,11 @@ function ContributionRow({ c }) {
   );
 }
 
+function isCampaignOwner(user, campaign) {
+  const userId = user?.id ?? user?.userId;
+  return userId != null && campaign?.creator_id != null && String(userId) === String(campaign.creator_id);
+}
+
 export default function Campaign() {
   const contributeBtnRef = useRef(null);
   const { id } = useParams();
@@ -627,9 +632,7 @@ export default function Campaign() {
     100,
     (campaign.raised_amount / campaign.target_amount) * 100,
   ).toFixed(1);
-  const currentUserId = user?.id || user?.userId;
-  const canPostUpdate =
-    currentUserId && String(campaign.creator_id) === String(currentUserId);
+  const canPostUpdate = isCampaignOwner(user, campaign);
   const campaignUrl = `${window.location.origin}/campaigns/${id}`;
   const embedCode = `<iframe src="${window.location.origin}/widget/campaigns/${id}" width="320" height="120" frameborder="0" title="CrowdPay campaign"></iframe>`;
 
@@ -781,7 +784,7 @@ export default function Campaign() {
       )}
       {campaign.status === "failed" &&
         user &&
-        user.id === campaign.creator_id && (
+        isCampaignOwner(user, campaign) && (
           <div
             style={{
               background: "var(--color-bg-card, #1e1e2f)",
@@ -1086,7 +1089,7 @@ export default function Campaign() {
       </div>
 
       {/* Edit campaign button - visible only to creator */}
-      {user && campaign && user.userId === campaign.creator_id && ['active', 'funded'].includes(campaign.status) && (
+      {isCampaignOwner(user, campaign) && ['active', 'funded'].includes(campaign.status) && (
         <div
           data-no-print
           style={{
@@ -1175,7 +1178,7 @@ export default function Campaign() {
       {/* Report a problem — visible to contributors who have backed this campaign */}
       {user &&
         contributions?.some((c) => c.sender_public_key) &&
-        campaign.creator_id !== user.id && (
+        !isCampaignOwner(user, campaign) && (
           <div style={{ marginBottom: "1.25rem" }} data-no-print>
             {disputeSubmitted ? (
               <p className="alert alert--success" role="status">
@@ -1342,7 +1345,7 @@ export default function Campaign() {
 
       <TransactionHistory
         campaignId={campaign.id}
-        isCreator={!!(user?.id && campaign.creator_id === user.id)}
+        isCreator={isCampaignOwner(user, campaign)}
       />
 
       <MilestoneTracker

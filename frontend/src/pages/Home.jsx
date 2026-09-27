@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
@@ -91,12 +91,18 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [searchInput, search]);
 
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
+    const requestId = ++requestIdRef.current;
+    const isStale = () => requestId !== requestIdRef.current;
     setListError('');
     setLoading(true);
+    setLoadingMore(false);
     api
       .getCampaigns({ search, status, asset, category, sort, limit: 20, offset: 0 })
       .then((data) => {
+        if (isStale()) return;
         const nextCampaigns = data.campaigns || [];
         const nextTotal = data.total || 0;
         setCampaigns(nextCampaigns);
@@ -104,12 +110,21 @@ export default function Home() {
         setHasMore(nextCampaigns.length < nextTotal);
         setPage(1);
       })
-      .catch((err) => setListError(err.message || t('home.loadingCampaigns')))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!isStale()) setListError(err.message || t('home.loadingCampaigns'));
+      })
+      .finally(() => {
+        if (!isStale()) setLoading(false);
+      });
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [search, status, asset, category, sort]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
+    const requestId = requestIdRef.current;
+    const isStale = () => requestId !== requestIdRef.current;
     setLoadingMore(true);
     setListError('');
     try {
@@ -122,6 +137,7 @@ export default function Home() {
         limit: 20,
         offset: page * 20,
       });
+      if (isStale()) return;
       setCampaigns((prev) => {
         const updated = [...prev, ...next];
         setHasMore(updated.length < nextTotal);
@@ -130,9 +146,9 @@ export default function Home() {
       setTotal(nextTotal);
       setPage((p) => p + 1);
     } catch (err) {
-      setListError(err.message || t('home.loadingCampaigns'));
+      if (!isStale()) setListError(err.message || t('home.loadingCampaigns'));
     } finally {
-      setLoadingMore(false);
+      if (!isStale()) setLoadingMore(false);
     }
   }
 
